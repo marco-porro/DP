@@ -6,6 +6,7 @@ import gymnasium as gym
 from gymnasium import logger
 from gymnasium.vector.vector_env import VectorEnv
 from gymnasium.vector.utils import concatenate, create_empty_array
+from gymnasium.spaces import Space
 
 __all__ = ["SyncVectorEnv"]
 
@@ -63,64 +64,41 @@ class SyncVectorEnv(VectorEnv):
         for env, seed in zip(self.envs, seeds):
             env.reset(seed=seed)
 
+
     def reset_wait(self, seed=None, options=None):
-        """
-        Gymnasium compatibility:
-        Accepts `seed` (int | list[int] | None) and `options` (dict | list[dict] | None)
-        and forwards them to each sub-environment's `reset`.
-        """
-        # Build per-env seeds list
-        if seed is None:
-            seeds = [None for _ in range(self.num_envs)]
-        elif isinstance(seed, int):
-            # Gymnasium convention: seed+i for each env when a single int is provided
-            seeds = [seed + i for i in range(self.num_envs)]
-        else:
-            # assume iterable of ints
-            assert len(seed) == self.num_envs, \
-                f"Expected {self.num_envs} seeds, got {len(seed)}"
-            seeds = list(seed)
-    
-        # Build per-env options list
-        if options is None:
-            options_list = [None for _ in range(self.num_envs)]
-        elif isinstance(options, (list, tuple)):
-            assert len(options) == self.num_envs, \
-                f"Expected {self.num_envs} options, got {len(options)}"
-            options_list = list(options)
-        else:
-            # single dict applied to all envs
-            options_list = [options for _ in range(self.num_envs)]
-    
         self._dones[:] = False
         observations = []
         infos = []
-        for env, s, opt in zip(self.envs, seeds, options_list):
-            # Gymnasium reset returns (obs, info)
-            observation, info = env.reset(seed=s, options=opt)
+        for env in self.envs:
+            observation, info = env.reset(seed=seed, options=options)
             observations.append(observation)
             infos.append(info)
-    
-        self.observations = create_empty_array(
-            self.single_observation_space, n=self.num_envs, fn=np.zeros
-        )
-        # ✅ Combine observations safely (handle list, dict, ndarray)
-        first_obs = observations[0]
-        if isinstance(first_obs, (list, tuple)):
-            # ManiSkill sometimes returns list of np arrays per env
-            self.observations = [np.stack([o[i] for o in observations]) for i in range(len(first_obs))]
-        elif isinstance(first_obs, dict):
-            # handle dict-style obs (for gymnasium.Dict spaces)
-            self.observations = {
-                k: np.stack([o[k] for o in observations]) for k in first_obs.keys()
-            }
+
+        # ✅ If single_observation_space is not a proper Gymnasium Space (e.g., it's a list),
+        # do a manual stack; otherwise use Gymnasium's concatenate helper.
+        if not isinstance(self.single_observation_space, Space):
+            first_obs = observations[0]
+            if isinstance(first_obs, (list, tuple)):
+                # list/tuple of arrays per env -> list of (num_envs, ...)
+                self.observations = [
+                    np.stack([o[i] for o in observations]) for i in range(len(first_obs))
+                ]
+            elif isinstance(first_obs, dict):
+                # dict of arrays per env -> dict of (num_envs, ...)
+                self.observations = {
+                    k: np.stack([o[k] for o in observations]) for k in first_obs.keys()
+                }
+            else:
+                # plain array/tensor -> (num_envs, ...)
+                self.observations = np.stack(observations)
         else:
-            # standard Gymnasium behavior
+            # standard Gymnasium path
             self.observations = concatenate(
                 observations, self.observations, self.single_observation_space
             )
 
         return (deepcopy(self.observations) if self.copy else self.observations), infos
+
 
 
     def step_async(self, actions):
