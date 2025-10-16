@@ -16,15 +16,19 @@ def repeated_box(box_space, n):
     )
 
 def repeated_space(space, n):
-    if isinstance(space, spaces.Box):
+    import gym
+    import gymnasium.spaces as gymn_spaces
+
+    if isinstance(space, (gym.spaces.Box, gymn_spaces.Box)):
         return repeated_box(space, n)
-    elif isinstance(space, spaces.Dict):
-        result_space = spaces.Dict()
+    elif isinstance(space, (gym.spaces.Dict, gymn_spaces.Dict)):
+        result_space = gymn_spaces.Dict()
         for key, value in space.items():
             result_space[key] = repeated_space(value, n)
         return result_space
     else:
-        raise RuntimeError(f'Unsupported space type {type(space)}')
+        raise RuntimeError(f'Unsupported space type {type(space)}!!!')
+
 
 def take_last_n(x, n):
     x = list(x)
