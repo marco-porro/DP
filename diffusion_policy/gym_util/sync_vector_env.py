@@ -74,10 +74,11 @@ class SyncVectorEnv(VectorEnv):
             observations.append(observation)
             infos.append(info)
 
-        # ✅ If single_observation_space is not a proper Gymnasium Space (e.g., it's a list),
-        # do a manual stack; otherwise use Gymnasium's concatenate helper.
-        if not isinstance(self.single_observation_space, Space):
-            first_obs = observations[0]
+        # --- MANUAL MERGE: handle lists, tuples, dicts, etc. safely ---
+        first_obs = observations[0]
+
+        # force manual path if the observations are non-array types
+        if isinstance(first_obs, (list, tuple, dict)):
             if isinstance(first_obs, (list, tuple)):
                 # list/tuple of arrays per env -> list of (num_envs, ...)
                 self.observations = [
@@ -87,18 +88,18 @@ class SyncVectorEnv(VectorEnv):
                 # dict of arrays per env -> dict of (num_envs, ...)
                 self.observations = {
                     k: np.stack([o[k] for o in observations]) for k in first_obs.keys()
-                }
-            else:
-                # plain array/tensor -> (num_envs, ...)
-                self.observations = np.stack(observations)
+                ]
         else:
-            # standard Gymnasium path
-            self.observations = concatenate(
-                observations, self.observations, self.single_observation_space
-            )
+            # fallback to Gymnasium behaviour
+            try:
+                self.observations = concatenate(
+                    observations, self.observations, self.single_observation_space
+                )
+            except Exception:
+                # final fallback if concatenate still fails
+                self.observations = np.stack(observations)
 
         return (deepcopy(self.observations) if self.copy else self.observations), infos
-
 
 
     def step_async(self, actions):
@@ -109,18 +110,33 @@ class SyncVectorEnv(VectorEnv):
         for i, (env, action) in enumerate(zip(self.envs, self._actions)):
             # ✅ Gymnasium step() -> (obs, reward, terminated, truncated, info)
             observation, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated  # ✅ equivalente a vecchio done
+            done = terminated or truncated
             self._rewards[i] = reward
             self._dones[i] = done
-            # if self._dones[i]:
-            #     observation = env.reset()
             observations.append(observation)
             infos.append(info)
-        self.observations = concatenate(
-            observations, self.observations, self.single_observation_space
-        )
 
-        # ✅ Restituisce anche i flag terminated/truncated
+        # ✅ Combine observations safely (same logic as reset_wait)
+        first_obs = observations[0]
+        need_manual = (not isinstance(self.single_observation_space, Space)) \
+                      or isinstance(first_obs, (list, tuple, dict))
+
+        if need_manual:
+            if isinstance(first_obs, (list, tuple)):
+                self.observations = [
+                    np.stack([o[i] for o in observations]) for i in range(len(first_obs))
+                ]
+            elif isinstance(first_obs, dict):
+                self.observations = {
+                    k: np.stack([o[k] for o in observations]) for k in first_obs.keys()
+                }
+            else:
+                self.observations = np.stack(observations)
+        else:
+            self.observations = concatenate(
+                observations, self.observations, self.single_observation_space
+            )
+
         terminateds = np.array(self._dones, dtype=np.bool_)
         truncateds = np.zeros_like(terminateds, dtype=np.bool_)  # placeholder
 
@@ -131,6 +147,7 @@ class SyncVectorEnv(VectorEnv):
             truncateds,
             infos,
         )
+
 
     def close_extras(self, **kwargs):
         [env.close() for env in self.envs]
