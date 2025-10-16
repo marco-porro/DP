@@ -181,43 +181,59 @@ class AsyncVectorEnv(VectorEnv):
         _, successes = zip(*[pipe.recv() for pipe in self.parent_pipes])
         self._raise_if_errors(successes)
 
-    def reset_async(self):
+    def reset_async(self, seed=None, options=None):
+        """
+        Starts the asynchronous reset operation.
+        Accepts Gymnasium-style arguments `seed` (int | list[int] | None)
+        and `options` (dict | list[dict] | None).
+        """
         self._assert_is_running()
         if self._state != AsyncState.DEFAULT:
             raise AlreadyPendingCallError(
                 "Calling `reset_async` while waiting "
-                "for a pending call to `{0}` to complete".format(self._state.value),
+                f"for a pending call to `{self._state.value}` to complete.",
                 self._state.value,
             )
 
-        for pipe in self.parent_pipes:
-            pipe.send(("reset", None))
+        # Build per-env seeds list
+        if seed is None:
+            seeds = [None for _ in range(self.num_envs)]
+        elif isinstance(seed, int):
+            seeds = [seed + i for i in range(self.num_envs)]
+        else:
+            assert len(seed) == self.num_envs, f"Expected {self.num_envs} seeds, got {len(seed)}"
+            seeds = list(seed)
+
+        # Build per-env options list
+        if options is None:
+            options_list = [None for _ in range(self.num_envs)]
+        elif isinstance(options, (list, tuple)):
+            assert len(options) == self.num_envs, f"Expected {self.num_envs} options, got {len(options)}"
+            options_list = list(options)
+        else:
+            options_list = [options for _ in range(self.num_envs)]
+
+        for pipe, s, opt in zip(self.parent_pipes, seeds, options_list):
+            pipe.send(("reset", (s, opt)))
         self._state = AsyncState.WAITING_RESET
+
 
     def reset_wait(self, timeout=None):
         """
-        Parameters
-        ----------
-        timeout : int or float, optional
-            Number of seconds before the call to `reset_wait` times out. If
-            `None`, the call to `reset_wait` never times out.
-        Returns
-        -------
-        observations : sample from `observation_space`
-            A batch of observations from the vectorized environment.
+        Waits for the asynchronous reset to finish and returns (obs, infos).
+        Compatible with Gymnasium API: reset(seed=..., options=...) -> (obs, info)
         """
         self._assert_is_running()
         if self._state != AsyncState.WAITING_RESET:
             raise NoAsyncCallError(
-                "Calling `reset_wait` without any prior " "call to `reset_async`.",
+                "Calling `reset_wait` without any prior call to `reset_async`.",
                 AsyncState.WAITING_RESET.value,
             )
 
         if not self._poll(timeout):
             self._state = AsyncState.DEFAULT
             raise mp.TimeoutError(
-                "The call to `reset_wait` has timed out after "
-                "{0} second{1}.".format(timeout, "s" if timeout > 1 else "")
+                f"The call to `reset_wait` has timed out after {timeout} second(s)."
             )
 
         results, successes = zip(*[pipe.recv() for pipe in self.parent_pipes])
@@ -225,11 +241,17 @@ class AsyncVectorEnv(VectorEnv):
         self._state = AsyncState.DEFAULT
 
         if not self.shared_memory:
+            observations, infos = zip(*results)
             self.observations = concatenate(
-                results, self.observations, self.single_observation_space
+                observations, self.observations, self.single_observation_space
             )
+        else:
+            # when using shared memory, results contain only infos
+            infos = results
 
-        return deepcopy(self.observations) if self.copy else self.observations
+        # Return (obs, infos) as Gymnasium expects
+        return (deepcopy(self.observations) if self.copy else self.observations), list(infos)
+
 
     def step_async(self, actions):
         """
@@ -525,8 +547,13 @@ def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
         while True:
             command, data = pipe.recv()
             if command == "reset":
-                obs, info = env.reset()
-                pipe.send(((obs, info), True))
+                seed, options = (data if isinstance(data, tuple) else (None, None))
+                obs, info = env.reset(seed=seed, options=options)
+                if shared_memory is not None:
+                    write_to_shared_memory(index, obs, shared_memory, observation_space)
+                    pipe.send((info, True))
+                else:
+                    pipe.send(((obs, info), True))
             elif command == "step":
                 obs, reward, terminated, truncated, info = env.step(data)
                 done = terminated or truncated
@@ -568,9 +595,13 @@ def _worker_shared_memory(index, env_fn, pipe, parent_pipe, shared_memory, error
         while True:
             command, data = pipe.recv()
             if command == "reset":
-                obs, info = env.reset()
-                write_to_shared_memory(index, obs, shared_memory, observation_space)
-                pipe.send((None, True))
+                seed, options = (data if isinstance(data, tuple) else (None, None))
+                obs, info = env.reset(seed=seed, options=options)
+                if shared_memory is not None:
+                    write_to_shared_memory(index, obs, shared_memory, observation_space)
+                    pipe.send((info, True))
+                else:
+                    pipe.send(((obs, info), True))
             elif command == "step":
                 obs, reward, terminated, truncated, info = env.step(data)
                 done = terminated or truncated
