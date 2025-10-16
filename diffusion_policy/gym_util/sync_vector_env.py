@@ -63,21 +63,53 @@ class SyncVectorEnv(VectorEnv):
         for env, seed in zip(self.envs, seeds):
             env.reset(seed=seed)
 
-    def reset_wait(self):
+    def reset_wait(self, seed=None, options=None):
+        """
+        Gymnasium compatibility:
+        Accepts `seed` (int | list[int] | None) and `options` (dict | list[dict] | None)
+        and forwards them to each sub-environment's `reset`.
+        """
+        # Build per-env seeds list
+        if seed is None:
+            seeds = [None for _ in range(self.num_envs)]
+        elif isinstance(seed, int):
+            # Gymnasium convention: seed+i for each env when a single int is provided
+            seeds = [seed + i for i in range(self.num_envs)]
+        else:
+            # assume iterable of ints
+            assert len(seed) == self.num_envs, \
+                f"Expected {self.num_envs} seeds, got {len(seed)}"
+            seeds = list(seed)
+    
+        # Build per-env options list
+        if options is None:
+            options_list = [None for _ in range(self.num_envs)]
+        elif isinstance(options, (list, tuple)):
+            assert len(options) == self.num_envs, \
+                f"Expected {self.num_envs} options, got {len(options)}"
+            options_list = list(options)
+        else:
+            # single dict applied to all envs
+            options_list = [options for _ in range(self.num_envs)]
+    
         self._dones[:] = False
         observations = []
-        infos = []  # ✅ Gymnasium: reset() restituisce anche info
-        for env in self.envs:
-            # ✅ Gymnasium reset() -> (obs, info)
-            observation, info = env.reset()
+        infos = []
+        for env, s, opt in zip(self.envs, seeds, options_list):
+            # Gymnasium reset returns (obs, info)
+            observation, info = env.reset(seed=s, options=opt)
             observations.append(observation)
             infos.append(info)
+    
+        self.observations = create_empty_array(
+            self.single_observation_space, n=self.num_envs, fn=np.zeros
+        )
         self.observations = concatenate(
             observations, self.observations, self.single_observation_space
         )
-
-        # ✅ Restituisce anche info come da nuova API
+    
         return (deepcopy(self.observations) if self.copy else self.observations), infos
+
 
     def step_async(self, actions):
         self._actions = actions
