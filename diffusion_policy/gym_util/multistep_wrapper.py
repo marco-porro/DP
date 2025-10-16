@@ -1,5 +1,5 @@
-import gym
-from gym import spaces
+import gymnasium as gym   # ✅ cambiato da gym → gymnasium
+from gymnasium import spaces
 import numpy as np
 from collections import defaultdict, deque
 import dill
@@ -86,9 +86,10 @@ class MultiStepWrapper(gym.Wrapper):
         self.done = list()
         self.info = defaultdict(lambda : deque(maxlen=n_obs_steps+1))
     
-    def reset(self):
+    def reset(self, **kwargs):
         """Resets the environment using kwargs."""
-        obs = super().reset()
+        # ✅ Gymnasium: reset() → returns (obs, info)
+        obs, info = super().reset(**kwargs)
 
         self.obs = deque([obs], maxlen=self.n_obs_steps+1)
         self.reward = list()
@@ -96,7 +97,7 @@ class MultiStepWrapper(gym.Wrapper):
         self.info = defaultdict(lambda : deque(maxlen=self.n_obs_steps+1))
 
         obs = self._get_obs(self.n_obs_steps)
-        return obs
+        return obs, info   # ✅ return both obs and info (Gymnasium style)
 
     def step(self, action):
         """
@@ -106,7 +107,9 @@ class MultiStepWrapper(gym.Wrapper):
             if len(self.done) > 0 and self.done[-1]:
                 # termination
                 break
-            observation, reward, done, info = super().step(act)
+            # ✅ Gymnasium: step() → (obs, reward, terminated, truncated, info)
+            observation, reward, terminated, truncated, info = super().step(act)
+            done = terminated or truncated   # ✅ equivalent to old "done"
 
             self.obs.append(observation)
             self.reward.append(reward)
@@ -121,7 +124,11 @@ class MultiStepWrapper(gym.Wrapper):
         reward = aggregate(self.reward, self.reward_agg_method)
         done = aggregate(self.done, 'max')
         info = dict_take_last_n(self.info, self.n_obs_steps)
-        return observation, reward, done, info
+        # ✅ Gymnasium: must return (obs, reward, terminated, truncated, info)
+        # here we keep backward compat by splitting done into both flags
+        terminated = done
+        truncated = False
+        return observation, reward, terminated, truncated, info
 
     def _get_obs(self, n_steps=1):
         """
