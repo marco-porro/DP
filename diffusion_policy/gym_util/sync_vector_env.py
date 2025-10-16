@@ -104,10 +104,22 @@ class SyncVectorEnv(VectorEnv):
         self.observations = create_empty_array(
             self.single_observation_space, n=self.num_envs, fn=np.zeros
         )
-        self.observations = concatenate(
-            observations, self.observations, self.single_observation_space
-        )
-    
+        # ✅ Combine observations safely (handle list, dict, ndarray)
+        first_obs = observations[0]
+        if isinstance(first_obs, (list, tuple)):
+            # ManiSkill sometimes returns list of np arrays per env
+            self.observations = [np.stack([o[i] for o in observations]) for i in range(len(first_obs))]
+        elif isinstance(first_obs, dict):
+            # handle dict-style obs (for gymnasium.Dict spaces)
+            self.observations = {
+                k: np.stack([o[k] for o in observations]) for k in first_obs.keys()
+            }
+        else:
+            # standard Gymnasium behavior
+            self.observations = concatenate(
+                observations, self.observations, self.single_observation_space
+            )
+
         return (deepcopy(self.observations) if self.copy else self.observations), infos
 
 
