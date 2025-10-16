@@ -1,5 +1,5 @@
-import gym
-import numpy as np
+import gymnasium as gym   # ✅ cambiato da gym → gymnasium
+import np as np
 
 class VideoWrapper(gym.Wrapper):
     def __init__(self, 
@@ -20,25 +20,27 @@ class VideoWrapper(gym.Wrapper):
         self.step_count = 0
 
     def reset(self, **kwargs):
-        obs = super().reset(**kwargs)
+        # ✅ Gymnasium reset() → (obs, info)
+        obs, info = super().reset(**kwargs)
         self.frames = list()
         self.step_count = 1
         if self.enabled:
-            frame = self.env.render(
-                mode=self.mode, **self.render_kwargs)
+            # ✅ Gymnasium usa render_mode definito a creazione env
+            frame = self.env.render(**self.render_kwargs)
             assert frame.dtype == np.uint8
             self.frames.append(frame)
-        return obs
+        return obs, info   # ✅ ritorna anche info (Gymnasium API)
     
     def step(self, action):
-        result = super().step(action)
+        # ✅ Gymnasium step() → (obs, reward, terminated, truncated, info)
+        obs, reward, terminated, truncated, info = super().step(action)
         self.step_count += 1
         if self.enabled and ((self.step_count % self.steps_per_render) == 0):
-            frame = self.env.render(
-                mode=self.mode, **self.render_kwargs)
+            frame = self.env.render(**self.render_kwargs)  # ✅ niente argomento mode
             assert frame.dtype == np.uint8
             self.frames.append(frame)
-        return result
+        # ✅ restituisce i 5 valori come da Gymnasium
+        return obs, reward, terminated, truncated, info
     
     def render(self, mode='rgb_array', **kwargs):
         return self.frames
