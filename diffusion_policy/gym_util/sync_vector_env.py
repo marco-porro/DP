@@ -88,7 +88,7 @@ class SyncVectorEnv(VectorEnv):
                 # dict of arrays per env -> dict of (num_envs, ...)
                 self.observations = {
                     k: np.stack([o[k] for o in observations]) for k in first_obs.keys()
-                ]
+                }
         else:
             # fallback to Gymnasium behaviour
             try:
