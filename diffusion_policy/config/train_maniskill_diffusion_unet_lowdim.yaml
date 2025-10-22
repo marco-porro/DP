@@ -2,7 +2,7 @@ defaults:
   - _self_
   - task: pickcube_lowdim
 
-name: name: train_maniskill_diffusion_unet_lowdim
+name: train_maniskill_diffusion_unet_lowdim
 _target_: diffusion_policy.workspace.train_diffusion_unet_lowdim_workspace.TrainDiffusionUnetLowdimWorkspace
 
 obs_dim: ${task.obs_dim}
