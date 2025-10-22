@@ -16,7 +16,7 @@ keypoint_dim: 0
 dataset:
   _target_: diffusion_policy.dataset.maniskill_replay_lowdim_dataset.ManiSkillReplayLowdimDataset
   dataset_path: data/PickCube-v1.zarr   # Path to the Zarr dataset created by your converter
-  horizon: ${..horizon}
+  horizon: ${horizon}
   pad_before: 0
   pad_after: 0
   val_ratio: 0.05
@@ -39,14 +39,14 @@ env_runner:
   n_test_vis: 3
   test_start_seed: 10000
   max_steps: 400
-  n_obs_steps: ${..n_obs_steps}
-  n_action_steps: ${..n_action_steps}
-  n_latency_steps: ${..n_latency_steps}
+  n_obs_steps: ${n_obs_steps}
+  n_action_steps: ${n_action_steps}
+  n_latency_steps: ${n_latency_steps}
   render_hw: [256, 256]
   render_camera_name: "base_camera"
   fps: 10
   crf: 22
-  past_action: ${..past_action_visible}
+  past_action: ${past_action_visible}
   abs_action: False
   tqdm_interval_sec: 5.0
   n_envs: null
