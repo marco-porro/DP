@@ -15,7 +15,7 @@ keypoint_dim: 0
 # --- Dataset configuration ---
 dataset:
   _target_: diffusion_policy.dataset.maniskill_replay_lowdim_dataset.ManiSkillReplayLowdimDataset
-  dataset_path: data/PickCube-v1.zarr   # Path to the Zarr dataset created by your converter
+  dataset_path: /content/data/PickCube-v1.zarr   # Path to the Zarr dataset created by your converter
   horizon: ${horizon}
   pad_before: 0
   pad_after: 0
