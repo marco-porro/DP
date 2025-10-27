@@ -85,18 +85,24 @@ class ManiSkillLowdimWrapper(gym.Env):
     # UTILITIES
     # ----------------------------------------------------------------------
 
-    def _flatten_observation(self, raw_obs: Dict[str, np.ndarray]) -> np.ndarray:
-        """Concatena le chiavi specificate in un unico vettore float32."""
-        parts = []
-        for k in self.obs_keys:
-            val = raw_obs.get(k, None)
-            if val is None:
-                continue
-            val = np.asarray(val, dtype=np.float32).reshape(-1)
-            parts.append(val)
-        if not parts:
-            raise KeyError(f"Nessuna chiave valida trovata in obs: {self.obs_keys}")
-        return np.concatenate(parts, axis=0).astype(np.float32)
+        def _flatten_observation(self, raw_obs):
+            # Gestisci il caso ManiSkill3 dove raw_obs è già un tensore
+            if isinstance(raw_obs, torch.Tensor):
+                return raw_obs.flatten().cpu().numpy()  # o semplicemente raw_obs se vuoi restare in torch
+        
+            # Oppure se è un dict (vecchio formato)
+            flat = []
+            for k in self.obs_keys:
+                val = raw_obs.get(k, None)
+                if val is None:
+                    continue
+                if isinstance(val, torch.Tensor):
+                    val = val.flatten().cpu().numpy()
+                elif isinstance(val, np.ndarray):
+                    val = val.flatten()
+                flat.append(val)
+            return np.concatenate(flat, axis=-1)
+
 
     # ----------------------------------------------------------------------
     # GYMNASIUM API
