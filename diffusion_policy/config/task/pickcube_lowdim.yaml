@@ -42,7 +42,7 @@ env_runner:
   n_obs_steps: ${n_obs_steps}
   n_action_steps: ${n_action_steps}
   n_latency_steps: ${n_latency_steps}
-  render_hw: [256, 256]
+  render_hw: 256
   render_camera_name: "base_camera"
   fps: 10
   crf: 22
