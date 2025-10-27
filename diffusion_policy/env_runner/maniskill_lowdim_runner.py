@@ -190,7 +190,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         self.tqdm_interval_sec = tqdm_interval_sec
 
         self.env_id = env_id
-        self.obs_keys = obs_keys or ["agent", "cube", "goal_site", "panda"]
+        self.obs_keys = [] if obs_keys is None else obs_keys
 
     # ----------------------------------------------------------------------
     # ROLLOUT
