@@ -1,3 +1,5 @@
+# diffusion_policy/env_runner/maniskill_lowdim_runner.py
+
 import os
 import math
 import dill
@@ -55,8 +57,12 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         n_envs=None,
         control_mode="pd_joint_delta_pos",
         reward_mode="dense",
+        obs_mode="state",   # ✅ aggiunto per ManiSkill3
     ):
         super().__init__(output_dir)
+
+        # ✅ inizializza obs_keys subito (prima di env_fn)
+        self.obs_keys = [] if obs_keys is None else obs_keys
 
         if n_envs is None:
             n_envs = n_train + n_test
@@ -87,6 +93,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
                         reward_mode=reward_mode,
                         render_hw=render_hw,
                         render_camera_name=render_camera_name,
+                        obs_mode=obs_mode,  # ✅ passa l'obs_mode al wrapper
                     ),
                     video_recoder=VideoRecorder.create_h264(
                         fps=fps,
@@ -188,9 +195,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         self.rotation_transformer = rotation_transformer
         self.abs_action = abs_action
         self.tqdm_interval_sec = tqdm_interval_sec
-
         self.env_id = env_id
-        self.obs_keys = [] if obs_keys is None else obs_keys
 
     # ----------------------------------------------------------------------
     # ROLLOUT
@@ -220,9 +225,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
                 this_init_fns.extend([self.env_init_fn_dills[0]] * n_diff)
             assert len(this_init_fns) == n_envs
 
-            # inizializza envs
             env.call_each("run_dill_function", args_list=[(x,) for x in this_init_fns])
-
             obs, _ = env.reset()
             past_action = None
             policy.reset()
@@ -236,9 +239,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
 
             done = False
             while not done:
-                np_obs_dict = {
-                    "obs": obs[:, : self.n_obs_steps].astype(np.float32)
-                }
+                np_obs_dict = {"obs": obs[:, : self.n_obs_steps].astype(np.float32)}
                 if self.past_action and (past_action is not None):
                     np_obs_dict["past_action"] = past_action[
                         :, -(self.n_obs_steps - 1) :
@@ -270,15 +271,11 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
                 pbar.update(action.shape[1])
             pbar.close()
 
-            # raccolta risultati
             all_video_paths[this_global_slice] = env.render()[this_local_slice]
             all_rewards[this_global_slice] = env.call("get_attr", "reward")[
                 this_local_slice
             ]
 
-        # ----------------------------------------------------------------------
-        # LOGGING SU WANDB
-        # ----------------------------------------------------------------------
         max_rewards = collections.defaultdict(list)
         log_data = dict()
 
