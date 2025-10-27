@@ -11,9 +11,9 @@ dataset:
   horizon: ${horizon}
   pad_before: 0
   pad_after: 0
-  val_ratio: 0.05
+  val_ratio: 0.2
   seed: 42
-  max_train_episodes: null
+  max_train_episodes: 100
   normalize_actions: True
   normalize_obs: True
   use_symmetric_normalizer: True
@@ -23,11 +23,11 @@ env_runner:
   output_dir: null
   env_id: ${..env_id}
   obs_mode: "state" 
-  n_train: 10
-  n_train_vis: 3
+  n_train: 6
+  n_train_vis: 6
   train_start_seed: 0
-  n_test: 10
-  n_test_vis: 3
+  n_test: 50
+  n_test_vis: 5
   test_start_seed: 10000
   max_steps: 400
   n_obs_steps: ${n_obs_steps}
