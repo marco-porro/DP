@@ -22,7 +22,7 @@ env_runner:
   _target_: diffusion_policy.env_runner.maniskill_lowdim_runner.ManiSkillLowdimRunner
   output_dir: null
   env_id: ${..env_id}
-  obs_keys: ["agent", "cube", "goal_site", "panda"] 
+  obs_mode: "state" 
   n_train: 10
   n_train_vis: 3
   train_start_seed: 0
