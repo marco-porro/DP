@@ -82,7 +82,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
                 VideoRecordingWrapper(
                     ManiSkillLowdimWrapper(
                         env_id=env_id,
-                        obs_keys=obs_keys,
+                        obs_keys=self.obs_keys,
                         control_mode=control_mode,
                         reward_mode=reward_mode,
                         render_hw=render_hw,
