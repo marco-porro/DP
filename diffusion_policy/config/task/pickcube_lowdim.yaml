@@ -1,8 +1,8 @@
 name: pickcube_lowdim
 env_id: PickCube-v1
 
-obs_dim: 70
-action_dim: 7
+obs_dim: 42
+action_dim: 8
 keypoint_dim: 0
 
 dataset:
@@ -11,7 +11,7 @@ dataset:
   horizon: ${horizon}
   pad_before: 0
   pad_after: 0
-  val_ratio: 0.2
+  val_ratio: 0.02
   seed: 42
   max_train_episodes: 100
   normalize_actions: True
@@ -23,11 +23,11 @@ env_runner:
   output_dir: null
   env_id: ${..env_id}
   obs_mode: "state" 
-  n_train: 6
-  n_train_vis: 6
+  n_train: 1
+  n_train_vis: 1
   train_start_seed: 0
-  n_test: 50
-  n_test_vis: 5
+  n_test: 1
+  n_test_vis: 1
   test_start_seed: 10000
   max_steps: 400
   n_obs_steps: ${n_obs_steps}
