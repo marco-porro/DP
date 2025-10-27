@@ -1,21 +1,13 @@
-# ============================================
-# Task: PickCube (ManiSkill3) - Lowdim version
-# Compatible with Gymnasium==0.29.1
-# ============================================
-
 name: pickcube_lowdim
 env_id: PickCube-v1
 
-# --- Observation & Action dimensions ---
-# (modify if you use a custom ManiSkill environment)
 obs_dim: 70
 action_dim: 7
 keypoint_dim: 0
 
-# --- Dataset configuration ---
 dataset:
   _target_: diffusion_policy.dataset.maniskill_replay_lowdim_dataset.ManiSkillReplayLowdimDataset
-  dataset_path: /content/DP/diffusion_policy/data/PickCube-v1.zarr   # Path to the Zarr dataset created by your converter
+  dataset_path: /content/DP/diffusion_policy/data/PickCube-v1.zarr  
   horizon: ${horizon}
   pad_before: 0
   pad_after: 0
@@ -26,12 +18,11 @@ dataset:
   normalize_obs: True
   use_symmetric_normalizer: True
 
-# --- Environment runner configuration ---
 env_runner:
   _target_: diffusion_policy.env_runner.maniskill_lowdim_runner.ManiSkillLowdimRunner
   output_dir: null
   env_id: ${..env_id}
-  obs_keys: ["agent", "cube", "goal_site", "panda"]  # keys concatenated by the wrapper
+  obs_keys: ["agent", "cube", "goal_site", "panda"] 
   n_train: 10
   n_train_vis: 3
   train_start_seed: 0
@@ -42,7 +33,7 @@ env_runner:
   n_obs_steps: ${n_obs_steps}
   n_action_steps: ${n_action_steps}
   n_latency_steps: ${n_latency_steps}
-  render_hw: 256
+  render_hw: [256,256]
   render_camera_name: "base_camera"
   fps: 10
   crf: 22
