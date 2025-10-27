@@ -1,5 +1,13 @@
 # diffusion_policy/env_runner/maniskill_lowdim_runner.py
 
+import multiprocessing as mp
+mp.set_start_method("spawn", force=True)
+
+# Ora puoi importare tutto il resto
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="pkg_resources")
+
 import os
 import math
 import dill
@@ -176,7 +184,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         # ----------------------------------------------------------------------
         # Vettorizzazione
         # ----------------------------------------------------------------------
-        env = AsyncVectorEnv(env_fns)
+        env = AsyncVectorEnv(env_fns, shared_memory=False)
 
         self.env = env
         self.env_fns = env_fns
