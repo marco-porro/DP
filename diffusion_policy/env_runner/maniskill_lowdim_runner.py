@@ -19,7 +19,8 @@ import collections
 import numpy as np
 import wandb.sdk.data_types.video as wv
 
-from diffusion_policy.gym_util.async_vector_env import AsyncVectorEnv
+# ✅ usa SyncVectorEnv invece di AsyncVectorEnv
+from diffusion_policy.gym_util.sync_vector_env import SyncVectorEnv
 from diffusion_policy.gym_util.multistep_wrapper import MultiStepWrapper
 from diffusion_policy.gym_util.video_recording_wrapper import (
     VideoRecordingWrapper,
@@ -184,7 +185,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         # ----------------------------------------------------------------------
         # Vettorizzazione
         # ----------------------------------------------------------------------
-        env = AsyncVectorEnv(env_fns, shared_memory=False)
+        env = SyncVectorEnv(env_fns)  # ✅ sostituito AsyncVectorEnv con SyncVectorEnv
 
         self.env = env
         self.env_fns = env_fns
