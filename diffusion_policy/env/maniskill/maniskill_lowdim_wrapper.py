@@ -2,6 +2,7 @@ from typing import List, Dict, Optional, Tuple, Any
 import numpy as np
 import gymnasium as gym
 from gymnasium.spaces import Box
+import torch
 
 # ManiSkill3 envs
 import mani_skill.envs
