@@ -134,6 +134,18 @@ class VideoRecorder:
         if self.shape is None:
             self.shape = img.shape
             self.dtype = img.dtype
+
+            if isinstance(img, torch.Tensor):
+                img = img.detach().cpu().numpy()
+
+            # Se il frame è un batch (N,H,W,3)
+            if img.ndim == 4:
+                img = img[0]
+
+            # Se il frame è RGBA (H,W,4)
+            if img.shape[-1] == 4:
+                img = img[..., :3]
+
             h,w,c = img.shape
             self.stream.width = w
             self.stream.height = h
