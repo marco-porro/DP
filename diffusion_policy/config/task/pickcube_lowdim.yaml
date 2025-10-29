@@ -7,11 +7,11 @@ keypoint_dim: 0
 
 dataset:
   _target_: diffusion_policy.dataset.maniskill_replay_lowdim_dataset.ManiSkillReplayLowdimDataset
-  dataset_path: /content/DP/diffusion_policy/data/PickCube-v1.zarr  
+  dataset_path: /content/DP/diffusion_policy/data/PickCube-v1.zarr
   horizon: ${horizon}
   pad_before: 0
   pad_after: 0
-  val_ratio: 0.02
+  val_ratio: 0.2
   seed: 42
   max_train_episodes: 100
   normalize_actions: True
@@ -22,7 +22,7 @@ env_runner:
   _target_: diffusion_policy.env_runner.maniskill_lowdim_runner.ManiSkillLowdimRunner
   output_dir: null
   env_id: ${..env_id}
-  obs_mode: "state" 
+  obs_mode: "state"
   n_train: 1
   n_train_vis: 1
   train_start_seed: 0
@@ -34,7 +34,6 @@ env_runner:
   n_action_steps: ${n_action_steps}
   n_latency_steps: ${n_latency_steps}
   render_hw: [256,256]
-  render_camera_name: "base_camera"
   fps: 10
   crf: 22
   past_action: ${past_action_visible}
