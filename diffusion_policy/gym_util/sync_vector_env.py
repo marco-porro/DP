@@ -60,7 +60,7 @@ class SyncVectorEnv(VectorEnv):
             seeds = [seeds + i for i in range(self.num_envs)]
         assert len(seeds) == self.num_envs
 
-        # ✅ Gymnasium: non ha env.seed(), si usa env.reset(seed=...)
+        # Gymnasium: non ha env.seed(), si usa env.reset(seed=...)
         for env, seed in zip(self.envs, seeds):
             env.reset(seed=seed)
 
@@ -108,7 +108,7 @@ class SyncVectorEnv(VectorEnv):
     def step_wait(self):
         observations, infos = [], []
         for i, (env, action) in enumerate(zip(self.envs, self._actions)):
-            # ✅ Gymnasium step() -> (obs, reward, terminated, truncated, info)
+            # Gymnasium step() -> (obs, reward, terminated, truncated, info)
             observation, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             self._rewards[i] = reward
@@ -116,7 +116,7 @@ class SyncVectorEnv(VectorEnv):
             observations.append(observation)
             infos.append(info)
 
-        # ✅ Combine observations safely (same logic as reset_wait)
+        # Combine observations safely (same logic as reset_wait)
         first_obs = observations[0]
         # ensure elements are arrays
         observations = [np.asarray(o) for o in observations]
@@ -141,7 +141,7 @@ class SyncVectorEnv(VectorEnv):
                     observations, self.observations, self.single_observation_space
                 )
             except Exception:
-                # 🔧 robust fallback
+                # robust fallback
                 self.observations = np.stack(observations)
 
         terminateds = np.array(self._dones, dtype=np.bool_)
