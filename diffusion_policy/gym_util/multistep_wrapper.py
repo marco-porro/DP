@@ -109,12 +109,17 @@ class MultiStepWrapper(gym.Wrapper):
         """
         for act in action:
             if len(self.done) > 0 and self.done[-1]:
-                # termination
                 break
-            # ✅ Gymnasium: step() → (obs, reward, terminated, truncated, info)
             observation, reward, terminated, truncated, info = super().step(act)
-            done = terminated or truncated   # ✅ equivalent to old "done"
+            # ✅ fix: ensure obs is always ndarray
+            if isinstance(observation, (list, tuple)):
+                observation = np.array(observation, dtype=np.float32)
+            elif isinstance(observation, dict):
+                from mani_skill.utils import common as ms_common
+                observation = ms_common.flatten_state_dict(observation)
+            observation = np.asarray(observation, dtype=np.float32).reshape(-1)
 
+            done = terminated or truncated
             self.obs.append(observation)
             self.reward.append(reward)
             if (self.max_episode_steps is not None) \
