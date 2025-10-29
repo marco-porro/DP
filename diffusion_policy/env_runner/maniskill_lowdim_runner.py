@@ -1,5 +1,3 @@
-# diffusion_policy/env_runner/maniskill_lowdim_runner.py
-
 import multiprocessing as mp
 mp.set_start_method("spawn", force=True)
 
@@ -19,7 +17,7 @@ import collections
 import numpy as np
 import wandb.sdk.data_types.video as wv
 
-# ✅ usa SyncVectorEnv invece di AsyncVectorEnv
+# usa SyncVectorEnv invece di AsyncVectorEnv
 from diffusion_policy.gym_util.sync_vector_env import SyncVectorEnv
 from diffusion_policy.gym_util.multistep_wrapper import MultiStepWrapper
 from diffusion_policy.gym_util.video_recording_wrapper import (
@@ -45,7 +43,6 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         self,
         output_dir,
         env_id="PickCube-v1",
-        obs_keys=None,
         n_train=10,
         n_train_vis=3,
         train_start_seed=0,
@@ -57,7 +54,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         n_action_steps=8,
         n_latency_steps=0,
         render_hw=(256, 256),
-        render_camera_name="base_camera",
+        render_mode="rgb_array",
         fps=10,
         crf=22,
         past_action=False,
@@ -66,12 +63,9 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         n_envs=None,
         control_mode="pd_joint_delta_pos",
         reward_mode="dense",
-        obs_mode="state",   # ✅ aggiunto per ManiSkill3
+        obs_mode="state",
     ):
         super().__init__(output_dir)
-
-        # ✅ inizializza obs_keys subito (prima di env_fn)
-        self.obs_keys = [] if obs_keys is None else obs_keys
 
         if n_envs is None:
             n_envs = n_train + n_test
@@ -97,12 +91,10 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
                 VideoRecordingWrapper(
                     ManiSkillLowdimWrapper(
                         env_id=env_id,
-                        obs_keys=self.obs_keys,
                         control_mode=control_mode,
                         reward_mode=reward_mode,
-                        render_hw=render_hw,
-                        render_camera_name=render_camera_name,
-                        obs_mode=obs_mode,  # ✅ passa l'obs_mode al wrapper
+                        render_mode=render_mode,
+                        obs_mode=obs_mode,
                     ),
                     video_recoder=VideoRecorder.create_h264(
                         fps=fps,
@@ -185,7 +177,12 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         # ----------------------------------------------------------------------
         # Vettorizzazione
         # ----------------------------------------------------------------------
-        env = SyncVectorEnv(env_fns)  # ✅ sostituito AsyncVectorEnv con SyncVectorEnv
+        env = SyncVectorEnv(env_fns)
+        obs, _ = env.reset()
+        print("RESET TYPE:", type(obs), "SHAPE:", np.shape(obs))
+        obs, reward, term, trunc, info = env.step(env.action_space.sample())
+        print("STEP TYPE:", type(obs), "SHAPE:", np.shape(obs))
+
 
         self.env = env
         self.env_fns = env_fns
@@ -274,7 +271,9 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
                 if self.abs_action:
                     env_action = self.undo_transform_action(action)
 
-                obs, reward, done, info = env.step(env_action)
+                obs, reward, terminated, truncated, info = env.step(env_action)
+                done = np.logical_or(terminated, truncated)
+
                 done = np.all(done)
                 past_action = action
                 pbar.update(action.shape[1])
