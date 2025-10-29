@@ -43,7 +43,6 @@ class VideoRecordingWrapper(gym.Wrapper):
 
             # ✅ Gymnasium: render() non accetta più il parametro "mode"
             frame = self.env.render(**self.render_kwargs)
-            self.video_recoder.write_frame(frame)
             assert frame.dtype == np.uint8
             self.video_recoder.write_frame(frame)
 
