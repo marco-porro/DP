@@ -96,15 +96,15 @@ training:
   # optimization
   lr_scheduler: cosine
   lr_warmup_steps: 500
-  num_epochs: 5000
+  num_epochs: 1000
   gradient_accumulate_every: 1
   use_ema: True
   # training loop control
   # in epochs
   rollout_every: 50
   checkpoint_every: 50
-  val_every: 5
-  sample_every: 5
+  val_every: 10
+  sample_every: 10
   # steps per epoch
   max_train_steps: null
   max_val_steps: null
