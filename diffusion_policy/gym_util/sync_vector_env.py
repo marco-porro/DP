@@ -1,7 +1,7 @@
 import numpy as np
 from copy import deepcopy
 
-# ✅ cambiato da gym → gymnasium
+# cambiato da gym → gymnasium
 import gymnasium as gym
 from gymnasium import logger
 from gymnasium.vector.vector_env import VectorEnv
