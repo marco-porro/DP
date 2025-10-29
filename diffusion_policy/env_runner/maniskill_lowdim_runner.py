@@ -74,9 +74,9 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         env_n_obs_steps = n_obs_steps + n_latency_steps
         env_n_action_steps = n_action_steps
 
-        # impostazioni FPS e rendering
-        maniskill_fps = 20
-        steps_per_render = max(maniskill_fps // fps, 1)
+        # imposta direttamente gli FPS passati dal config
+        steps_per_render = 1  # default: registra ogni step
+        record_fps = fps      # usa lo stesso valore dello YAML
 
         # setup trasformazione rotazione (per controlli assoluti)
         rotation_transformer = None
@@ -97,7 +97,7 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
                         obs_mode=obs_mode,
                     ),
                     video_recoder=VideoRecorder.create_h264(
-                        fps=fps,
+                        fps=record_fps,
                         codec="h264",
                         input_pix_fmt="rgb24",
                         crf=crf,
@@ -178,11 +178,6 @@ class ManiSkillLowdimRunner(BaseLowdimRunner):
         # Vettorizzazione
         # ----------------------------------------------------------------------
         env = SyncVectorEnv(env_fns)
-        obs, _ = env.reset()
-        print("RESET TYPE:", type(obs), "SHAPE:", np.shape(obs))
-        obs, reward, term, trunc, info = env.step(env.action_space.sample())
-        print("STEP TYPE:", type(obs), "SHAPE:", np.shape(obs))
-
 
         self.env = env
         self.env_fns = env_fns
