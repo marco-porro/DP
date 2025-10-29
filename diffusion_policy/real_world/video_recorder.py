@@ -2,6 +2,7 @@ from typing import Optional, Callable, Generator
 import numpy as np
 import av
 from diffusion_policy.common.timestamp_accumulator import get_accumulate_timestamp_idxs
+import torch
 
 def read_video(
         video_path: str, dt: float,
