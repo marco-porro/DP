@@ -118,6 +118,9 @@ class SyncVectorEnv(VectorEnv):
 
         # ✅ Combine observations safely (same logic as reset_wait)
         first_obs = observations[0]
+        # ensure elements are arrays
+        observations = [np.asarray(o) for o in observations]
+
         need_manual = (not isinstance(self.single_observation_space, Space)) \
                       or isinstance(first_obs, (list, tuple, dict))
 
@@ -133,9 +136,13 @@ class SyncVectorEnv(VectorEnv):
             else:
                 self.observations = np.stack(observations)
         else:
-            self.observations = concatenate(
-                observations, self.observations, self.single_observation_space
-            )
+            try:
+                self.observations = concatenate(
+                    observations, self.observations, self.single_observation_space
+                )
+            except Exception:
+                # 🔧 robust fallback
+                self.observations = np.stack(observations)
 
         terminateds = np.array(self._dones, dtype=np.bool_)
         truncateds = np.zeros_like(terminateds, dtype=np.bool_)  # placeholder
