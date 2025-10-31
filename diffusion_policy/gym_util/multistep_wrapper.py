@@ -108,10 +108,13 @@ class MultiStepWrapper(gym.Wrapper):
         actions: (n_action_steps,) + action_shape
         """
         for act in action:
+            # Se episodio già finito, interrompi il loop interno
             if len(self.done) > 0 and self.done[-1]:
                 break
+
             observation, reward, terminated, truncated, info = super().step(act)
-            # ✅ fix: ensure obs is always ndarray
+
+            # ✅ Normalizza l’osservazione
             if isinstance(observation, (list, tuple)):
                 observation = np.array(observation, dtype=np.float32)
             elif isinstance(observation, dict):
@@ -119,25 +122,41 @@ class MultiStepWrapper(gym.Wrapper):
                 observation = ms_common.flatten_state_dict(observation)
             observation = np.asarray(observation, dtype=np.float32).reshape(-1)
 
+            # ✅ Calcola flag done per questo substep
             done = terminated or truncated
+
+            # ✅ Aggiungi ai buffer
             self.obs.append(observation)
             self.reward.append(reward)
-            if (self.max_episode_steps is not None) \
-                and (len(self.reward) >= self.max_episode_steps):
-                # truncation
+
+            # ✅ Gestione limite temporale (time limit)
+            if (self.max_episode_steps is not None) and (len(self.reward) >= self.max_episode_steps):
+                truncated = True  # ← troncamento tecnico, non successo
+                terminated = False
                 done = True
+
             self.done.append(done)
             self._add_info(info)
 
+        # ------------------------------------------------------
+        # Aggrega n-step e calcola output complessivo
+        # ------------------------------------------------------
         observation = self._get_obs(self.n_obs_steps)
         reward = aggregate(self.reward, self.reward_agg_method)
-        done = aggregate(self.done, 'max')
+
+        # Episodio finito se qualunque sotto-step è done
+        any_done = aggregate(self.done, "max")
+
+        # ✅ Separazione corretta Gymnasium
+        limit_trunc = (self.max_episode_steps is not None) and (len(self.reward) >= self.max_episode_steps)
+        terminated = bool(any_done and not limit_trunc)
+        truncated = bool(limit_trunc)
+
         info = dict_take_last_n(self.info, self.n_obs_steps)
-        # ✅ Gymnasium: must return (obs, reward, terminated, truncated, info)
-        # here we keep backward compat by splitting done into both flags
-        terminated = done
-        truncated = False
+
+        # ✅ Restituisci in formato Gymnasium compatibile
         return observation, reward, terminated, truncated, info
+
 
     def _get_obs(self, n_steps=1):
         """
