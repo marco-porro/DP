@@ -156,8 +156,14 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                 step_log = dict()
                 # ========= train for this epoch ==========
                 train_losses = list()
-                with tqdm.tqdm(train_dataloader, desc=f"Training epoch {self.epoch}", 
-                        leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                with tqdm.tqdm(
+                        train_dataloader,
+                        desc=f"Training epoch {self.epoch}",
+                        leave=True,                      # ✅ lascia la riga visibile a fine epoch
+                        mininterval=0.2,                 # ✅ aggiorna più spesso (~5 volte al secondo)
+                        position=self.epoch,             # ✅ nuova riga per ogni epoch
+                        smoothing=0.1                    # ✅ ETA più reattivo e stabile
+                ) as tepoch:
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
@@ -222,8 +228,14 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                 if (self.epoch % cfg.training.val_every) == 0:
                     with torch.no_grad():
                         val_losses = list()
-                        with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
-                                leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                        with tqdm.tqdm(
+                                val_dataloader,
+                                desc=f"Validation epoch {self.epoch}",
+                                leave=True,
+                                mininterval=0.2,
+                                position=self.epoch + 0.5,   # per non sovrapporsi alla barra di training
+                                smoothing=0.1
+                        ) as tepoch:
                             for batch_idx, batch in enumerate(tepoch):
                                 batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                                 loss = self.model.compute_loss(batch)
