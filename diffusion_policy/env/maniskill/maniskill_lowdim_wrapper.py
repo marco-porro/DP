@@ -1,108 +1,141 @@
-from typing import Optional, Union
-import numpy as np
 import gymnasium as gym
-from gymnasium.spaces import Box
-from mani_skill.utils.wrappers import CPUGymWrapper
-from mani_skill.utils.wrappers.record import RecordEpisode
-from mani_skill.utils import common as ms_common  # for flatten_state_dict
-
-
-def _to_flat_obs(x: Union[np.ndarray, dict]) -> np.ndarray:
-    if isinstance(x, dict):
-        x = ms_common.flatten_state_dict(x)
-    return np.asarray(x, dtype=np.float32).reshape(-1)
-
+import numpy as np
+import torch
 
 class ManiSkillLowdimWrapper(gym.Env):
-    metadata = {"render_modes": ["rgb_array", "human"]}
-
     def __init__(
         self,
-        env_id: str = "PickCube-v1",
-        obs_mode: str = "state",
-        control_mode: str = "pd_joint_delta_pos",
-        reward_mode: str = "dense",
-        render_mode: str = "rgb_array",
-        record_dir: Optional[str] = None,
-        record_fps: int = 30,
-        save_traj: bool = False,
-        save_video: bool = True,
-        max_steps: int = 400,
-        **env_kwargs,
+        env,
+        obs_keys=None,
+        init_state=None,
+        max_steps=400,
     ):
-        import mani_skill.envs
+        super().__init__()
+        self.env = env
+        self.obs_keys = obs_keys or []   # non usato direttamente, ma lasciato per compatibilità
+        self.init_state = init_state
+        self.max_steps = max_steps
+        self._seed = None
+        self._step_count = 0
+        self.num_envs = getattr(env, "num_envs", 1)
 
-        # Crea l’ambiente ManiSkill
-        env = gym.make(
-            env_id,
-            obs_mode=obs_mode,
-            control_mode=control_mode,
-            reward_mode=reward_mode,
-            render_mode=render_mode,
-            **env_kwargs,
+        # Gymnasium space setup
+        if hasattr(env, "action_space"):
+            self.action_space = env.action_space
+        else:
+            raise AttributeError("Env must define action_space")
+
+        # Determina observation_space (flattened state)
+        obs, _ = env.reset()
+        obs_flat = self._flatten_obs(obs)
+        low = np.full_like(obs_flat, fill_value=-np.inf)
+        high = np.full_like(obs_flat, fill_value=np.inf)
+        self.observation_space = gym.spaces.Box(
+            low=low, high=high, dtype=np.float32
         )
 
-        # ✅ Forza la durata massima dell’episodio
-        # ManiSkill 3 non sempre espone _max_episode_steps, quindi proviamo tutte le varianti
-        for attr in ["max_episode_steps", "_max_episode_steps"]:
-            try:
-                if hasattr(env, attr):
-                    setattr(env, attr, max_steps)
-                if hasattr(env.unwrapped, attr):
-                    setattr(env.unwrapped, attr, max_steps)
-            except Exception:
-                pass
+    # ----------------------------------------------------------------------
+    def seed(self, seed=None):
+        self._seed = seed
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        return [seed]
 
-        # Conversione a Gym compatibile (CPU)
-        env = CPUGymWrapper(env, ignore_terminations=True, record_metrics=True)
+    # ----------------------------------------------------------------------
+    def _flatten_obs(self, obs):
+        """
+        Converte i dizionari ManiSkill (torch tensors o numpy) in un singolo vettore np.float32.
+        """
+        # ManiSkill usa torch.Tensor batched -> scegli env[0]
+        if isinstance(obs, dict):
+            # ManiSkill 'state' mode -> dict di torch.tensor
+            if "agent" in obs and isinstance(obs["agent"], dict):
+                values = []
+                for v in obs["agent"].values():
+                    if isinstance(v, torch.Tensor):
+                        v = v.detach().cpu().numpy()
+                    v = np.asarray(v, dtype=np.float32)
+                    # batch dimension
+                    if v.ndim > 1:
+                        v = v[0]
+                    values.append(v.reshape(-1))
+                flat = np.concatenate(values, axis=0)
+                return flat
+            else:
+                # già flattened o altro dict
+                all_vals = []
+                for v in obs.values():
+                    if isinstance(v, torch.Tensor):
+                        v = v.detach().cpu().numpy()
+                    v = np.asarray(v, dtype=np.float32)
+                    if v.ndim > 1:
+                        v = v[0]
+                    all_vals.append(v.reshape(-1))
+                return np.concatenate(all_vals, axis=0)
+        elif isinstance(obs, torch.Tensor):
+            obs = obs.detach().cpu().numpy()
+            if obs.ndim > 1:
+                obs = obs[0]
+            return obs.astype(np.float32)
+        else:
+            return np.asarray(obs, dtype=np.float32).reshape(-1)
 
-        # Aggiungi registrazione video (senza troncamento forzato)
-        if record_dir is not None:
-            env = RecordEpisode(
-                env,
-                output_dir=record_dir,
-                save_trajectory=save_traj,
-                trajectory_name="trajectory",
-                save_video=save_video,
-                video_fps=record_fps,
-                max_steps_per_video=None,  # ✅ evita trunc
-            )
+    # ----------------------------------------------------------------------
+    def reset(self, **kwargs):
+        """
+        Reset compatibile con Gymnasium, gestisce init_state e seed.
+        """
+        if self.init_state is not None:
+            self.env.set_state_dict(self.init_state)
 
-        self.env = env
+        # evita seed duplicato
+        if "seed" in kwargs:
+            obs, info = self.env.reset(**kwargs)
+        else:
+            obs, info = self.env.reset(seed=self._seed, **kwargs)
 
-        # Spazi osservazioni / azioni
-        obs, _ = self.env.reset(seed=0)
-        obs = _to_flat_obs(obs)
-        self.observation_space = Box(-np.inf, np.inf, shape=obs.shape, dtype=np.float32)
+        self._seed = None
+        self._step_count = 0
+        obs_flat = self._flatten_obs(obs)
+        return obs_flat, info
 
-        low = np.asarray(self.env.action_space.low, np.float32).reshape(-1)
-        high = np.asarray(self.env.action_space.high, np.float32).reshape(-1)
-        self.action_space = Box(low, high, dtype=np.float32)
-
-        self.max_steps = max_steps
-        self.record_fps = record_fps
-
-    # ---------------------------- GYM API ----------------------------
-    def reset(self, *, seed=None, options=None):
-        obs, info = self.env.reset(seed=seed, options=options)
-        return _to_flat_obs(obs), info
-
+    # ----------------------------------------------------------------------
     def step(self, action):
-        action = np.asarray(action, np.float32).reshape(-1)
+        """
+        Step compatibile con Gymnasium, converte osservazioni in float32 flattened.
+        """
+        if isinstance(action, np.ndarray):
+            action = torch.from_numpy(action).float()
         obs, reward, terminated, truncated, info = self.env.step(action)
-        return _to_flat_obs(obs), float(reward), bool(terminated), bool(truncated), info
+        obs_flat = self._flatten_obs(obs)
+        self._step_count += 1
 
+        # Se il wrapper interno non restituisce truncated, creiamolo noi
+        if truncated is None:
+            truncated = self._step_count >= self.max_steps
+
+        # Calcolo done solo interno (non nel return)
+        done = terminated or truncated
+
+        return obs_flat, float(reward), terminated, truncated, info
+
+    # ----------------------------------------------------------------------
     def render(self, **kwargs):
-        frame = self.env.render(**kwargs)
+        """
+        Usa l'API Gymnasium per render. Converte torch -> numpy uint8.
+        """
+        # In Gymnasium, il render_mode è definito al momento della creazione dell'env
         try:
-            import torch
-            if isinstance(frame, torch.Tensor):
-                frame = frame.detach().cpu().numpy()
-        except Exception:
-            pass
-        frame = np.asarray(frame)
-        if frame.ndim == 4 and frame.shape[-1] in (1, 3, 4):
+            frame = self.env.render(**kwargs)
+        except TypeError:
+            # Fallback: alcuni wrapper non accettano kwargs
+            frame = self.env.render()
+
+        if isinstance(frame, torch.Tensor):
+            frame = frame.detach().cpu().numpy()
+        if isinstance(frame, (list, tuple)):
             frame = frame[0]
+        frame = np.asarray(frame)
         if frame.dtype != np.uint8:
             fmin, fmax = float(frame.min()), float(frame.max())
             if fmax <= 1.0:
@@ -111,9 +144,12 @@ class ManiSkillLowdimWrapper(gym.Env):
                 frame = frame.clip(0, 255).astype(np.uint8)
         return frame
 
-    def seed(self, seed: Optional[int] = None):
-        self.env.reset(seed=seed)
-        return [seed]
-
-    def close(self):
-        self.env.close()
+    # ----------------------------------------------------------------------
+    def get_observation(self):
+        """
+        Restituisce l'osservazione corrente flattenata.
+        """
+        obs = self.env.unwrapped.get_obs() if hasattr(self.env.unwrapped, "get_obs") else None
+        if obs is None:
+            obs, _ = self.env.reset()
+        return self._flatten_obs(obs)
